@@ -29,7 +29,8 @@ def _fmt(v):
 def live() -> dict:
     items = []
     for d in monitor.snapshots():
-        reading = d.get("status") == "reading"
+        # Device status vocabulary: open/attached = talking, error/closed = not.
+        reading = d.get("status") in ("open", "attached", "reading")
         for ch in d.get("channels") or []:
             if ch.get("value") is None:
                 continue
