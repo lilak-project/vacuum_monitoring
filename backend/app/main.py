@@ -109,6 +109,8 @@ app.include_router(profiles.router)
 app.include_router(devices.router)
 app.include_router(logs.router)
 app.include_router(status.router)
+from .routers import live as _live  # noqa: E402
+app.include_router(_live.router)
 # The LILAK elog asks this service to fill a task log; see app/elog.py.
 app.include_router(elog.router)
 
