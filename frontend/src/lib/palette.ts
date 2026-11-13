@@ -1,37 +1,26 @@
+// neon:allow-colour — fallbacks only: a NEON page sets every --neon-* these read.
 /**
- * Series colours.
+ * Chart colours, from the NEON tokens: the series set (--neon-series-1…8, the
+ * one exception to NEON's two colours -- several traces need hues) and the
+ * chart chrome (dim axis, grid, line, panel). Read when a chart is built, so a
+ * theme change rebuilds it in the new colours (time-chart.tsx, useTheme).
  *
- * These eight are the validated categorical set from the data-visualisation
- * reference palette, in its fixed order. They are assigned to channels in
- * sequence and never cycled or re-ordered: the order is what makes the set
- * safe for red-green colour blindness, so changing it breaks the guarantee.
- *
- * Checked against this page's white surface with the palette validator:
- * lightness band, chroma floor, contrast, and colour-vision separation all
- * pass — worst adjacent pair ΔE 9.1 under protanopia, 19.6 under normal
- * vision. Three of them (aqua, yellow, magenta) sit below 3:1 contrast on
- * white, which is allowed only because every value is also readable without
- * the colour: the live legend names each channel beside its number, the
- * readout above the chart repeats it, and the Data panel lists the samples
- * themselves.
+ * Assigned to channels in order and never cycled: a set of eight stays
+ * distinguishable; a ninth would not be.
  */
-export const SERIES_COLORS = [
-  "#2a78d6", // blue
-  "#eb6834", // orange
-  "#1baf7a", // aqua
-  "#eda100", // yellow
-  "#e87ba4", // magenta
-  "#008300", // green
-  "#4a3aa7", // violet
-  "#e34948", // red
-] as const
+function cssVar(name: string, fallback: string): string {
+  if (typeof document === "undefined") return fallback
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
 
 /** The colour for channel `index`.  Never cycles: see above. */
 export function seriesColor(index: number): string {
-  return SERIES_COLORS[index] ?? "#868e96"
+  return index >= 0 && index < 8 ? cssVar(`--neon-series-${index + 1}`, "#19f0ff") : cssVar("--neon-dim", "#9391a8")
 }
 
 /** Chart chrome, one step off the surface so it stays recessive. */
-export const AXIS_COLOR = "#868e96"
-export const GRID_COLOR = "#e9ecef"
-export const TICK_COLOR = "#dee2e6"
+export const axisColor = () => cssVar("--neon-dim", "#9391a8")
+export const gridColor = () => cssVar("--neon-grid", "#1a1a26")
+export const tickColor = () => cssVar("--neon-line", "#3a3a52")
+export const surfaceColor = () => cssVar("--neon-panel", "#12121a")
+export const chartFont = () => `13px "IBM Plex Sans", "Pretendard", -apple-system, sans-serif`

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { AppShell, Badge, Container, Group, Stack, Tabs, Text, Title } from "@mantine/core"
-import { BookOpen, Database, FolderClock } from "lucide-react"
+import { Brand, Choice, Screen, Spacer, StateDot, Tabs, Tag, ThemeSwitch, type TabItem, type Tone } from "@neon"
 
 import type { WatermarkAt } from "@/components/chart/watermark-plugin"
 import { DevicePanel } from "@/components/device-panel"
@@ -12,7 +11,7 @@ import { useStatusStream } from "@/hooks/use-status-stream"
 import { api } from "@/lib/api"
 import { formatValue, unitLabel } from "@/lib/format"
 import { formatDuration } from "@/lib/time"
-import type { DeviceSnapshot, SourceConfig } from "@/lib/types"
+import type { DeviceSnapshot, Me, SourceConfig } from "@/lib/types"
 
 /** How one device's chart is being read, per device. */
 interface DeviceView {
@@ -27,8 +26,43 @@ const SOURCES_TAB = "sources"
 const LOGS_TAB = "logs"
 const REFERENCE_TAB = "reference"
 
+/** Remembered per browser: a controller who chose to just watch stays watching. */
+const MODE_KEY = "vacuum.mode"
+type Mode = "control" | "monitor"
+/** A portal role change reaches the page within this. */
+const ME_INTERVAL = 30000
+
+/**
+ * One service, two modes. Control opens, closes and configures gauges (the
+ * Sources tab); monitoring only watches. Who may control is the server's call
+ * (/api/me, enforced on every write); anyone who may can step down to Monitor.
+ */
 export default function App() {
   const { devices, live, mode } = useStatusStream()
+  const [me, setMe] = useState<Me | null>(null)
+  const [chosen, setChosen] = useState<Mode>(() => {
+    try {
+      return window.localStorage.getItem(MODE_KEY) === "monitor" ? "monitor" : "control"
+    } catch {
+      return "control"
+    }
+  })
+  const mayControl = me?.control ?? false
+  const control = mayControl && chosen === "control"
+  useEffect(() => {
+    const ask = () => api.me().then(setMe).catch(() => undefined)
+    ask()
+    const timer = setInterval(ask, ME_INTERVAL)
+    return () => clearInterval(timer)
+  }, [])
+  const chooseMode = (next: Mode) => {
+    setChosen(next)
+    try {
+      window.localStorage.setItem(MODE_KEY, next)
+    } catch {
+      /* it just will not be remembered */
+    }
+  }
   const [config, setConfig] = useState<SourceConfig | null>(null)
   const { pending, run } = useAction()
 
@@ -65,7 +99,9 @@ export default function App() {
 
   const setView = (device: DeviceSnapshot, patch: Partial<DeviceView>) => {
     setViews((current) => ({ ...current, [device.id]: { ...current[device.id], ...patch } }))
-    if (device.profile_id) {
+    // Saved with the profile only by someone who may change it; a watcher's
+    // choice stays in this page.
+    if (device.profile_id && control) {
       void api
         .saveProfileView(device.profile_id, {
           display_unit: patch.unit,
@@ -96,12 +132,12 @@ export default function App() {
   const ids = devices.map((device) => device.id)
   const active =
     requestedTab &&
-    (requestedTab === SOURCES_TAB ||
+    ((control && requestedTab === SOURCES_TAB) ||
       requestedTab === LOGS_TAB ||
       requestedTab === REFERENCE_TAB ||
       ids.includes(requestedTab))
       ? requestedTab
-      : (ids[0] ?? SOURCES_TAB)
+      : (ids[0] ?? (control ? SOURCES_TAB : LOGS_TAB))
 
   const closeDevice = (device: DeviceSnapshot) =>
     void run(
@@ -113,126 +149,86 @@ export default function App() {
       `Closed ${device.name}`,
     )
 
+  const tabs: TabItem[] = [
+    ...(control ? [{
+      value: SOURCES_TAB,
+      label: "Sources",
+    }] : []),
+    ...devices.map((device) => ({
+      value: device.id,
+      label: device.name,
+      // The reading itself under the name: from across the room the tab row is the panel.
+      state: deviceSummary(device),
+      tone: deviceTone(device),
+    })),
+    { value: LOGS_TAB, label: "Logs" },
+    { value: REFERENCE_TAB, label: "Reference" },
+  ]
+
   return (
-    <AppShell header={{ height: { base: 104, md: 132 } }} padding={0}>
-      {/* The header is fixed, so the tabs stay reachable however far you
-          scroll. No bottom rule: the tabs are coloured blocks and separate
-          themselves. */}
-      <AppShell.Header withBorder={false}>
-        <Container h={64}>
-          <Group h="100%" justify="space-between" wrap="nowrap">
-            <Group gap="md" wrap="nowrap" style={{ minWidth: 0 }}>
-              <Title order={1} fz="h3" fw={600} className="app-title">
-                Vacuum Monitoring
-              </Title>
-              <Badge size="md" radius="sm" variant="light" color={live ? "teal" : "red"}>
-                {live ? "Live" : "Reconnecting"}
-              </Badge>
-              {config ? (
-                <Badge size="md" radius="sm" variant="default" visibleFrom="sm">
-                  {config.mode === "live" ? "reading the instruments" : "reading saved logs"}
-                </Badge>
-              ) : null}
-            </Group>
-
-          </Group>
-        </Container>
-
-        <Container>
-          <Tabs value={active} onChange={setRequestedTab} variant="pills">
-            <Tabs.List>
-              <StateTab
-                value={SOURCES_TAB}
-                active={active === SOURCES_TAB}
-                tone="blue"
-                name="Sources"
-                icon={<Database size={16} />}
-                state={
-                  devices.length > 0
-                    ? `${devices.length} device${devices.length === 1 ? "" : "s"}`
-                    : "nothing open"
-                }
-              />
-
-              {devices.map((device) => (
-                <StateTab
-                  key={device.id}
-                  value={device.id}
-                  active={active === device.id}
-                  tone={deviceTone(device)}
-                  name={device.name}
-                  /* The reading itself under the name: from across the room
-                     the tab row is the panel. */
-                  state={deviceSummary(device)}
-                />
-              ))}
-
-              <StateTab
-                value={LOGS_TAB}
-                active={active === LOGS_TAB}
-                tone="gray"
-                name="Logs"
-                icon={<FolderClock size={16} />}
-                state="saved CSVs"
-                style={{ marginInlineStart: "auto" }}
-              />
-
-              {/* Reference, not a device: an icon alone at the far end, so it
-                  never competes with the tabs you switch between. */}
-              <Tabs.Tab
-                value={REFERENCE_TAB}
-                className="state-tab icon-tab"
-                aria-label="Reference — what each instrument measures and how"
-                style={toneVars("gray", active === REFERENCE_TAB)}
-              >
-                <BookOpen size={20} />
-              </Tabs.Tab>
-            </Tabs.List>
-          </Tabs>
-        </Container>
-      </AppShell.Header>
-
-      <AppShell.Main>
-        <Container py="xl">
-          {active === REFERENCE_TAB ? (
-            <ReferencePanel />
-          ) : active === LOGS_TAB ? (
-            <LogsPanel />
-          ) : active === SOURCES_TAB ? (
-            <SourcesPanel config={config} devices={devices} onChanged={refreshConfig} />
-          ) : (
-            devices
-              .filter((device) => device.id === active)
-              .map((device) => (
-                <DevicePanel
-                  key={device.id}
-                  device={device}
-                  unit={views[device.id]?.unit ?? ""}
-                  onUnitChange={(unit) => setView(device, { unit })}
-                  logY={logFor(device)}
-                  onLogYChange={(logY) => setView(device, { logY })}
-                  watermarkAt={views[device.id]?.watermarkAt ?? "center"}
-                  onWatermarkAtChange={(watermarkAt) => setView(device, { watermarkAt })}
-                  onClose={() => closeDevice(device)}
-                  closing={pending === `close:${device.id}`}
-                />
-              ))
-          )}
-        </Container>
-      </AppShell.Main>
-    </AppShell>
+    <Screen
+      top={
+        <>
+          {/* Monitoring is stated, not implied by missing buttons. */}
+          <Brand name="Vacuum" readOnly={!control} />
+          <Tabs items={tabs} value={active} onChange={setRequestedTab} />
+          <Spacer />
+          {/* What the readings come from is a fact, not a reading (NEON rule 4). */}
+          {config ? <Tag label="MODE">{config.mode === "live" ? "instruments" : "saved logs"}</Tag> : null}
+          {/* The socket: a page that stopped updating must say so (rule 5: one width). */}
+          <StateDot tone={live ? "ok" : "warn"} reserve={["live", "reconnecting"]}>
+            {live ? "live" : "reconnecting"}
+          </StateDot>
+          {mayControl ? (
+            <Choice
+              small
+              options={[
+                { value: "control", label: "Control" },
+                { value: "monitor", label: "Monitor" },
+              ]}
+              value={control ? "control" : "monitor"}
+              onChange={chooseMode}
+            />
+          ) : null}
+          <ThemeSwitch />
+        </>
+      }
+    >
+      {active === REFERENCE_TAB ? (
+        <ReferencePanel />
+      ) : active === LOGS_TAB ? (
+        <LogsPanel />
+      ) : active === SOURCES_TAB ? (
+        <SourcesPanel config={config} devices={devices} onChanged={refreshConfig} />
+      ) : (
+        devices
+          .filter((device) => device.id === active)
+          .map((device) => (
+            <DevicePanel
+              key={device.id}
+              device={device}
+              unit={views[device.id]?.unit ?? ""}
+              onUnitChange={(unit) => setView(device, { unit })}
+              logY={logFor(device)}
+              onLogYChange={(logY) => setView(device, { logY })}
+              watermarkAt={views[device.id]?.watermarkAt ?? "center"}
+              onWatermarkAtChange={(watermarkAt) => setView(device, { watermarkAt })}
+              onClose={control ? () => closeDevice(device) : undefined}
+              closing={pending === `close:${device.id}`}
+            />
+          ))
+      )}
+    </Screen>
   )
 }
 
-type Tone = "blue" | "teal" | "gray" | "red"
-
+/** Lit when a gauge is being read; dim for saved logs or a closed device; pink on an error. */
 function deviceTone(device: DeviceSnapshot): Tone {
-  if (device.status === "error" || device.last_error) return "red"
-  // A tab of saved logs is grey however healthy it is: nothing about it is
-  // live, and green across the row should mean gauges are being read.
-  if (device.source === "file") return "gray"
-  if (device.status === "closed") return "gray"
-  return "teal"
+  if (device.status === "error" || device.last_error) return "alarm"
+  // A tab of saved logs is dim however healthy it is: nothing about it is live.
+  if (device.source === "file") return "idle"
+  if (device.status === "closed") return "idle"
+  return "ok"
 }
 
 /** The current reading, short enough to sit under the name on a tab. */
@@ -247,57 +243,4 @@ function deviceSummary(device: DeviceSnapshot): string {
   if (first.value == null) return device.status
   const more = device.channels.length > 1 ? ` +${device.channels.length - 1}` : ""
   return `${formatValue(first.value, 3)} ${unitLabel(first.unit)}${more}`
-}
-
-function toneVars(tone: Tone, active: boolean): React.CSSProperties {
-  return {
-    "--tt-bg": `var(--mantine-color-${tone}-${active ? 7 : 0})`,
-    "--tt-fg": active ? "var(--mantine-color-white)" : `var(--mantine-color-${tone}-9)`,
-    "--tt-bd": `var(--mantine-color-${tone}-${active ? 7 : 2})`,
-    "--tt-hover": `var(--mantine-color-${tone}-${active ? 8 : 1})`,
-  } as React.CSSProperties
-}
-
-/**
- * One tab: the name on top, what it is reading underneath, tinted by state.
- *
- * The colour is the point -- from across the room the tab row says which
- * gauges are alive before any of the words are readable.
- */
-function StateTab({
-  value,
-  active,
-  tone,
-  name,
-  state,
-  icon,
-  style,
-}: {
-  value: string
-  active: boolean
-  tone: Tone
-  name: string
-  state: string
-  icon?: React.ReactNode
-  style?: React.CSSProperties
-}) {
-  return (
-    <Tabs.Tab
-      value={value}
-      className="state-tab"
-      fz="sm"
-      py={6}
-      leftSection={icon}
-      style={{ ...toneVars(tone, active), ...style }}
-    >
-      <Stack gap={0} align="flex-start">
-        <Text fw={500} className="tab-name">
-          {name}
-        </Text>
-        <Text size="xs" fw={400} className="tab-meta tab-state tabular">
-          {state}
-        </Text>
-      </Stack>
-    </Tabs.Tab>
-  )
 }

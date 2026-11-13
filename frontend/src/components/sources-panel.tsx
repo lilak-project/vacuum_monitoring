@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
-  Alert, Badge, Button, Checkbox, Collapse, Group, Paper, Radio, ScrollArea,
-  SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput, Tooltip,
+  Badge, Button, Checkbox, Collapse, Group, Paper, Radio, ScrollArea,
+  Select, SimpleGrid, Stack, Switch, Table, Text, TextInput, Tooltip,
 } from "@mantine/core"
 import {
-  AlertTriangle, History, Link2Off, Plus, RefreshCw, Server, Sparkles, Trash2, Usb,
+  History, Link2Off, Plus, RefreshCw, Server, Sparkles, Trash2, Usb,
 } from "lucide-react"
+import { Choice, NoticeLine } from "@neon"
 
 import { Fact, FactGrid, Section } from "@/components/section"
 import { useAction } from "@/hooks/use-action"
@@ -555,28 +556,16 @@ function AddProfile({ config, onAdded }: { config: SourceConfig; onAdded: () => 
           ) : null
         }
       >
-        <SegmentedControl
-          value={kind}
-          onChange={(value) => setKind(value as ProfileKind)}
-          data={[
-            {
-              value: "serial",
-              label: (
-                <Group gap={6}>
-                  <Usb size={15} /> Instrument on this machine
-                </Group>
-              ),
-            },
-            {
-              value: "remote",
-              label: (
-                <Group gap={6}>
-                  <Server size={15} /> Another host
-                </Group>
-              ),
-            },
-          ]}
-        />
+        <div>
+          <Choice
+            value={kind}
+            onChange={setKind}
+            options={[
+              { value: "serial" as ProfileKind, label: <><Usb size={15} style={{ verticalAlign: "-2px", marginRight: 6 }} />Instrument on this machine</> },
+              { value: "remote" as ProfileKind, label: <><Server size={15} style={{ verticalAlign: "-2px", marginRight: 6 }} />Another host</> },
+            ]}
+          />
+        </div>
 
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           {kind === "serial" ? (
@@ -650,21 +639,32 @@ function AddProfile({ config, onAdded }: { config: SourceConfig; onAdded: () => 
 
         {/* Two programs on one tty is not an error Linux reports: they split
             the bytes between them and both lose readings. */}
-        {kind === "serial" && busyPorts.length > 0 ? (
-          <Alert color="yellow" variant="light" title="Ports already in use">
-            <Stack gap={4}>
-              {busyPorts.map((item) => (
-                <Text size="sm" key={item.device}>
-                  <span className="tabular">{item.device}</span> is held by{" "}
-                  {item.held_by.map((holder) => `${holder.name} (pid ${holder.pid})`).join(", ")}.
-                </Text>
-              ))}
-              <Text size="sm" c="dimmed">
-                Only one program can read a gauge — the other would get half the bytes and neither
-                would be right. Stop it before connecting here.
-              </Text>
-            </Stack>
-          </Alert>
+        {kind === "serial" ? (
+          // Always there for a serial source (rule 5): a port another program
+          // holds fills this line instead of a box appearing above the form.
+          <NoticeLine
+            tone={busyPorts.length > 0 ? "warn" : null}
+            more={
+              busyPorts.length > 0 ? (
+                <>
+                  {busyPorts.map((item) => (
+                    <div key={item.device}>
+                      <span className="tabular">{item.device}</span> is held by{" "}
+                      {item.held_by.map((holder) => `${holder.name} (pid ${holder.pid})`).join(", ")}.
+                    </div>
+                  ))}
+                  <div className="faint">
+                    Only one program can read a gauge — the other would get half the bytes and neither
+                    would be right. Stop it before connecting here.
+                  </div>
+                </>
+              ) : undefined
+            }
+          >
+            {busyPorts.length > 0
+              ? `Ports already in use: ${busyPorts.map((item) => item.device).join(", ")}`
+              : "No serial port is held by another program"}
+          </NoticeLine>
         ) : null}
       </Section>
     </Paper>
@@ -771,11 +771,8 @@ function AttachSources({
             </Group>
           }
         >
-          {error ? (
-            <Alert color="red" icon={<AlertTriangle size={18} />}>
-              {error}
-            </Alert>
-          ) : null}
+          {/* A failed read or add fills this line in place (rule 5). */}
+          <NoticeLine tone={error ? "alarm" : null}>{error || "Saved logs read"}</NoticeLine>
 
           <Group gap="md" align="flex-end">
             <TextInput
@@ -873,7 +870,7 @@ function AttachSources({
  */
 function ServiceInfo({ config }: { config: SourceConfig }) {
   return (
-    <Paper withBorder p="lg" radius="lg" bg="gray.0">
+    <Paper withBorder p="lg">
       <Section title="This service">
         <FactGrid>
           <Fact label="Log directory" mono>

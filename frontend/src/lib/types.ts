@@ -296,3 +296,11 @@ export interface SampleList {
   unit: string
   samples: Sample[]
 }
+
+/** /api/me: who is looking, and whether they may control. */
+export interface Me {
+  name: string | null
+  control: boolean
+  /** Run without a portal: nobody to ask, so control is allowed. */
+  standalone: boolean
+}

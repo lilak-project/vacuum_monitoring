@@ -74,7 +74,9 @@ export function watermarkPlugin(
         ctx.textBaseline = "middle"
         // Light enough that a 2px trace crossing it is still the darker thing
         // on the screen, dark enough to read across a room.
-        ctx.fillStyle = "rgba(33, 37, 41, 0.22)"
+        // The page's text colour, faint: right on both themes.
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--neon-text").trim() || "gray"
+        ctx.globalAlpha = 0.22
         ctx.fillText(label, box.x + box.w / 2, box.y + box.h / 2)
         ctx.restore()
       },

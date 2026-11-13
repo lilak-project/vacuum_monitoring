@@ -10,8 +10,20 @@ part of the run to look at**.
 
 ```
 backend/    FastAPI service, the measurement loop, and the instrument drivers
-frontend/   React UI (Mantine + uPlot)
+frontend/   React UI (Mantine + uPlot, drawn in NEON: ../neon_ui)
 ```
+
+## Control and monitoring
+
+Two modes. **Monitor** shows every gauge, its chart and the saved logs;
+**Control** adds the Sources tab (open, close, configure gauges, attach logs)
+and Disconnect. Under the portal, control is for a portal manager or an admin
+of this service (a portal grant with admin ticked, to the person or a group);
+everyone else gets monitoring. The server enforces it: every request that is
+not a read answers 403 for a monitoring caller (`backend/app/access.py`,
+checked by `backend/tools/check_access.py`). A watcher's chart choices (unit,
+log axis) stay in their page; only a controller's are saved with the profile.
+Run on its own, with no portal, everything is allowed, as before.
 
 ## Running it
 

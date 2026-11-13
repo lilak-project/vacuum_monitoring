@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef } from "react"
 import type uPlot from "uplot"
 
 import { formatTick, unitLabel } from "@/lib/format"
-import { AXIS_COLOR, GRID_COLOR, seriesColor, TICK_COLOR } from "@/lib/palette"
+import { useTheme } from "@neon"
+import { axisColor, chartFont, gridColor, seriesColor, surfaceColor, tickColor } from "@/lib/palette"
 import { formatClock } from "@/lib/time"
 import type { SeriesChannel } from "@/lib/types"
 
@@ -12,7 +13,6 @@ import { UplotChart } from "./uplot-react"
 import { watermarkPlugin, type WatermarkAt } from "./watermark-plugin"
 import { zoomPlugin } from "./zoom-plugin"
 
-const FONT = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
 
 /** How a time tick is written depends on how much of the axis it has to place.
  *
@@ -89,6 +89,8 @@ export function TimeChart({
   const data = useMemo(() => toAligned(channels, { logY }), [channels, logY])
 
   const unit = channels[0]?.unit ?? ""
+  // Canvas colours are read when the chart is built, so a theme change rebuilds it.
+  const theme = useTheme()
   // Everything uPlot cannot be told after it is built.
   const rebuildKey = useMemo(
     () =>
@@ -96,8 +98,9 @@ export function TimeChart({
         logY ? "log" : "linear",
         yRange ? `${yRange[0]}:${yRange[1]}` : "auto",
         channels.map((channel) => `${channel.index}/${channel.label}/${channel.unit}`).join("|"),
+        theme,
       ].join("~"),
-    [logY, yRange, channels],
+    [logY, yRange, channels, theme],
   )
 
   const options = useMemo<Omit<uPlot.Options, "width" | "height">>(() => {
@@ -127,21 +130,21 @@ export function TimeChart({
       },
       axes: [
         {
-          stroke: AXIS_COLOR,
-          font: FONT,
-          grid: { stroke: GRID_COLOR, width: 1 },
-          ticks: { stroke: TICK_COLOR, width: 1, size: 5 },
+          stroke: axisColor(),
+          font: chartFont(),
+          grid: { stroke: gridColor(), width: 1 },
+          ticks: { stroke: tickColor(), width: 1, size: 5 },
           values: (_self: uPlot, splits: number[]) => splits.map(timeTicks(spanRef.current)),
         },
         {
           scale: "y",
           label: unitLabel(unit),
-          labelFont: FONT,
-          stroke: AXIS_COLOR,
-          font: FONT,
+          labelFont: chartFont(),
+          stroke: axisColor(),
+          font: chartFont(),
           size: 68,
-          grid: { stroke: GRID_COLOR, width: 1 },
-          ticks: { stroke: TICK_COLOR, width: 1, size: 5 },
+          grid: { stroke: gridColor(), width: 1 },
+          ticks: { stroke: tickColor(), width: 1, size: 5 },
           values: (_self: uPlot, splits: number[]) => splits.map(formatTick),
         },
       ],
@@ -162,7 +165,7 @@ export function TimeChart({
             // two channels cross.
             size: 8,
             width: 2,
-            stroke: "#ffffff",
+            stroke: surfaceColor(),
             fill: seriesColor(channel.index >= 0 ? channel.index : position),
           },
           value: (_self: uPlot, value: number | null) =>
@@ -174,7 +177,9 @@ export function TimeChart({
         zoomPlugin({ onRange, onReset }),
       ],
     }
-  }, [channels, logY, yRange, unit, onRange, onReset])
+    // theme: the canvas colours are read when the options are built.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels, logY, yRange, unit, onRange, onReset, theme])
 
   // The window is owned outside the chart, so it is pushed in rather than
   // being whatever the data happens to span.

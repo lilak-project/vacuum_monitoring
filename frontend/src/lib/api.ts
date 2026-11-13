@@ -1,4 +1,5 @@
 import type {
+  Me,
   DeviceSnapshot,
   DeviceSpec,
   LogList,
@@ -86,6 +87,9 @@ function windowSearch(query: WindowQuery): string {
 }
 
 export const api = {
+  /** Who is looking, and whether they may control. */
+  me: () => request<Me>("/api/me"),
+
   readSource: () => request<SourceConfig>("/api/source"),
 
   setSource: (mode: string) =>

@@ -64,7 +64,8 @@ export function downloadChartPng(canvas: HTMLCanvasElement, filename: string): v
   sheet.height = canvas.height
   const context = sheet.getContext("2d")
   if (!context) return
-  context.fillStyle = "#ffffff"
+  // The panel's own colour behind the traces, so the picture matches the screen.
+  context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--neon-panel").trim() || "white"
   context.fillRect(0, 0, sheet.width, sheet.height)
   context.drawImage(canvas, 0, 0)
   sheet.toBlob((blob) => {

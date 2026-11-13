@@ -1,8 +1,9 @@
 import type uPlot from "uplot"
 
 /**
- * Direct manipulation of the time axis: drag to select, wheel to zoom, shift
- * to pan, double-click to go back.
+ * Direct manipulation of the time axis: drag to select, shift-drag to pan,
+ * double-click to go back. The wheel is left alone: it scrolls the page
+ * (zoom is the buttons beside the chart).
  *
  * None of it changes the scale itself. Every gesture reports the range it
  * means and the owner of the chart decides -- which is what lets a zoom go
@@ -19,8 +20,6 @@ export interface ZoomHandlers {
 /** Smallest window a gesture may produce: ten seconds of a 1 Hz log. */
 const MIN_SPAN = 10
 
-/** One wheel notch is a 20 % change -- about eight notches to a decade. */
-const WHEEL_STEP = 1.2
 
 export function zoomPlugin(handlers: ZoomHandlers): uPlot.Plugin {
   let detach: (() => void) | null = null
@@ -30,17 +29,6 @@ export function zoomPlugin(handlers: ZoomHandlers): uPlot.Plugin {
       ready(plot: uPlot) {
         const over = plot.over
         let panning: { x: number; min: number; max: number } | null = null
-
-        const onWheel = (event: WheelEvent) => {
-          event.preventDefault()
-          const { min, max } = plot.scales.x
-          if (min == null || max == null) return
-          const anchor = plot.posToVal(event.clientX - over.getBoundingClientRect().left, "x")
-          const factor = event.deltaY > 0 ? WHEEL_STEP : 1 / WHEEL_STEP
-          const from = anchor - (anchor - min) * factor
-          const to = anchor + (max - anchor) * factor
-          if (to - from >= MIN_SPAN) handlers.onRange(from, to)
-        }
 
         const onMouseDown = (event: MouseEvent) => {
           if (!event.shiftKey) return
@@ -70,7 +58,6 @@ export function zoomPlugin(handlers: ZoomHandlers): uPlot.Plugin {
 
         const onDoubleClick = () => handlers.onReset()
 
-        over.addEventListener("wheel", onWheel, { passive: false })
         over.addEventListener("mousedown", onMouseDown)
         over.addEventListener("dblclick", onDoubleClick)
         // On the window, not the plot: a drag that leaves the chart should
@@ -79,7 +66,6 @@ export function zoomPlugin(handlers: ZoomHandlers): uPlot.Plugin {
         window.addEventListener("mouseup", onMouseUp)
 
         detach = () => {
-          over.removeEventListener("wheel", onWheel)
           over.removeEventListener("mousedown", onMouseDown)
           over.removeEventListener("dblclick", onDoubleClick)
           window.removeEventListener("mousemove", onMouseMove)

@@ -1,4 +1,5 @@
-import { ActionIcon, Button, Group, Tooltip } from "@mantine/core"
+import { ActionIcon, Group, Tooltip } from "@mantine/core"
+import { Choice } from "@neon"
 import { ChevronLeft, ChevronRight, RotateCcw, ZoomIn, ZoomOut } from "lucide-react"
 
 import { RANGE_PRESETS } from "@/lib/time"
@@ -9,31 +10,17 @@ import type { TimeRangeControl } from "./use-time-range"
  * The window, as one row of buttons.
  *
  * The presets are widths; **All** is not — it is however much there is, which
- * can be a minute or four months. It is coloured differently for that reason:
- * it answers a different question from the ones beside it, and reaching for it
- * by accident when you wanted an hour is a chart you have to re-navigate.
+ * can be a minute or four months. It sits last, after the widths.
  */
 export function RangeControls({ range }: { range: TimeRangeControl }) {
   return (
     <Group gap="sm" wrap="wrap">
-      <Button.Group>
-        {RANGE_PRESETS.map((preset) => {
-          const active = range.presetId === preset.id
-          const everything = preset.seconds === null
-          return (
-            <Button
-              key={preset.id}
-              size="sm"
-              px="md"
-              variant={active ? "filled" : "default"}
-              color={everything ? "grape" : "blue"}
-              onClick={() => range.choosePreset(preset.id)}
-            >
-              {preset.label}
-            </Button>
-          )
-        })}
-      </Button.Group>
+      {/* A picked width slides over; a hand-zoomed window lights none. */}
+      <Choice
+        options={RANGE_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
+        value={range.presetId}
+        onChange={(id) => range.choosePreset(id)}
+      />
 
       <Group gap={4}>
         {/* Greyed at the ends rather than sliding into blank axis: an empty
@@ -83,7 +70,7 @@ function IconButton({
           that does -- otherwise the reason it is disabled is unreadable. */}
       <div>
         <ActionIcon
-          size="lg"
+          size={36}
           variant="default"
           disabled={disabled}
           onClick={onClick}

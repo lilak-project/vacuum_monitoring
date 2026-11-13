@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import {
-  Accordion, Alert, Badge, Button, Group, Paper, Stack, Text, Title, Tooltip,
-} from "@mantine/core"
-import { AlertTriangle, Expand, Pause, Play, Unplug, X } from "lucide-react"
+import { Accordion, Button, Group, Text, Tooltip } from "@mantine/core"
+import { Choice, Hold, NoticeLine, Panel, Readout, StateDot, Tag, type Tone } from "@neon"
+import { Expand, Unplug, X } from "lucide-react"
 
 import { ChartCard } from "@/components/chart/chart-card"
 import { useTimeRange } from "@/components/chart/use-time-range"
 import type { WatermarkAt } from "@/components/chart/watermark-plugin"
 import { ProvenancePanel } from "@/components/provenance-panel"
 import { ReadingFocus } from "@/components/reading-focus"
-import { Readout } from "@/components/readout"
 import { useProvenance } from "@/hooks/use-provenance"
 import { useSeries, type SeriesQuery } from "@/hooks/use-series"
 import { api } from "@/lib/api"
@@ -18,14 +16,18 @@ import { seriesColor } from "@/lib/palette"
 import { formatAgo, formatStamp } from "@/lib/time"
 import type { DeviceSnapshot } from "@/lib/types"
 
-/** How a device's status reads, and how alarming it should look. */
-function statusTone(device: DeviceSnapshot): { color: string; label: string } {
-  if (device.status === "error") return { color: "red", label: "Error" }
-  if (device.source === "file") return { color: "gray", label: "From the files" }
-  if (device.source === "remote") return { color: "teal", label: "Mirroring" }
-  if (device.status === "open") return { color: "teal", label: "Reading" }
-  return { color: "gray", label: "Closed" }
+/** How a device's status reads, and in which tone (every wording reserved: rule 5). */
+const STATUS_WORDS = ["error", "from the files", "mirroring", "reading", "closed"]
+function statusTone(device: DeviceSnapshot): { tone: Tone; label: string } {
+  if (device.status === "error") return { tone: "alarm", label: "error" }
+  if (device.source === "file") return { tone: "idle", label: "from the files" }
+  if (device.source === "remote") return { tone: "ok", label: "mirroring" }
+  if (device.status === "open") return { tone: "ok", label: "reading" }
+  return { tone: "idle", label: "closed" }
 }
+
+/** The widest a reading gets: four significant digits, signed, in exponent form. */
+const WIDEST = "-8.888e-88"
 
 /**
  * One device: what it reads now, what it has been reading, and where that
@@ -57,7 +59,8 @@ export function DevicePanel({
   /** Which quarter of the plot the big grey reading sits in. */
   watermarkAt: WatermarkAt
   onWatermarkAtChange: (at: WatermarkAt) => void
-  onClose: () => void
+  /** Absent while monitoring: no Disconnect is drawn. */
+  onClose?: () => void
   closing: boolean
 }) {
   const [channel, setChannel] = useState(0)
@@ -118,43 +121,45 @@ export function DevicePanel({
   const tone = statusTone(device)
   const channels = data?.series ?? []
 
+  const from =
+    provenance?.origin.port ?? (provenance?.origin.path ? provenance.storage.filename : null) ?? provenance?.origin.url ?? null
+
   return (
-    <Stack gap="lg">
-      <Paper withBorder p="lg" radius="lg">
-        <Stack gap="md">
-          <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
-            <Group gap="sm" align="baseline" wrap="wrap">
-              <Title order={2} fz="h3">
-                {device.name}
-              </Title>
-              <Badge variant="light" color={tone.color} size="lg">
-                {tone.label}
-              </Badge>
-              <Text size="sm" c="dimmed">
-                {device.device_type}
-                {provenance?.origin.port ? ` · ${provenance.origin.port}` : ""}
-                {provenance?.origin.path ? ` · ${provenance.storage.filename}` : ""}
-                {provenance?.origin.url ? ` · ${provenance.origin.url}` : ""}
-              </Text>
-            </Group>
-            <Button
-              variant="default"
-              leftSection={fromFiles ? <X size={17} /> : <Unplug size={17} />}
-              loading={closing}
-              onClick={onClose}
-            >
-              {fromFiles ? "Close tab" : "Disconnect"}
-            </Button>
-          </Group>
-
-          {device.last_error ? (
-            <Alert color="red" icon={<AlertTriangle size={18} />} title="The last read failed">
-              {device.last_error}
-            </Alert>
-          ) : null}
-
-        </Stack>
-      </Paper>
+    <div className="vac-stack">
+      <Panel
+        title={
+          // What this device IS -- its type, where it is read from -- as fixed
+          // tags (NEON rule 4); its state as a held dot (rule 5).
+          <span className="vac-tags">
+            {device.name}
+            <Tag label="TYPE">{device.device_type}</Tag>
+            {from ? <Tag label="FROM">{from}</Tag> : null}
+          </span>
+        }
+        actions={
+          <span className="vac-keys">
+            <StateDot tone={tone.tone} reserve={STATUS_WORDS}>
+              {tone.label}
+            </StateDot>
+            {onClose ? (
+              <Button
+                variant="default"
+                leftSection={fromFiles ? <X size={16} /> : <Unplug size={16} />}
+                loading={closing}
+                onClick={onClose}
+              >
+                {fromFiles ? "Close tab" : "Disconnect"}
+              </Button>
+            ) : null}
+          </span>
+        }
+      >
+        {/* The last read's failure: a line that is always there (rule 5), so
+            a failure fills it in place instead of pushing the chart down. */}
+        <NoticeLine tone={device.last_error ? "alarm" : null}>
+          {device.last_error ? `The last read failed: ${device.last_error}` : fromFiles ? "Read from saved logs" : "Last read OK"}
+        </NoticeLine>
+      </Panel>
 
       <ChartCard
         channels={channels}
@@ -192,9 +197,13 @@ export function DevicePanel({
                 <Readout
                   key={item.index}
                   size="hero"
-                  label={item.label}
-                  color={seriesColor(item.index)}
-                  value={formatValue(convert(item.value, provenance, item.index))}
+                  label={
+                    <>
+                      <span className="vac-swatch" style={{ background: seriesColor(item.index) }} />
+                      {item.label}
+                    </>
+                  }
+                  value={<Hold reserve={[WIDEST]}>{formatValue(convert(item.value, provenance, item.index))}</Hold>}
                   unit={unitLabel(unit || item.unit)}
                 />
               ))}
@@ -202,34 +211,26 @@ export function DevicePanel({
             <Group gap="sm" align="flex-end">
               <Readout
                 label={fromFiles ? "Last row" : "Last reading"}
-                value={fromFiles ? formatStamp(latestAt) : formatAgo(latestAt)}
+                value={
+                  <Hold reserve={fromFiles ? ["8888-88-88 88:88:88"] : ["just now", "59 min ago", "23 h ago", "never"]}>
+                    {fromFiles ? formatStamp(latestAt) : formatAgo(latestAt)}
+                  </Hold>
+                }
+                size="text"
               />
               {!fromFiles ? (
-                <Tooltip
-                  label={
-                    range.follow
-                      ? "Following the present"
-                      : "Frozen — press to follow the present again"
-                  }
-                >
-                  <Button
-                    size="sm"
-                    variant={range.follow ? "filled" : "default"}
-                    color={range.follow ? "teal" : undefined}
-                    leftSection={range.follow ? <Play size={15} /> : <Pause size={15} />}
-                    onClick={() => range.setFollow(!range.follow)}
-                  >
-                    {range.follow ? "Live" : "Frozen"}
-                  </Button>
-                </Tooltip>
+                // Following the present, or holding still to read: picked, it slides.
+                <Choice
+                  value={range.follow ? "live" : "frozen"}
+                  onChange={(v) => range.setFollow(v === "live")}
+                  options={[
+                    { value: "live", label: "Live" },
+                    { value: "frozen", label: "Frozen" },
+                  ]}
+                />
               ) : null}
               <Tooltip label="Show just the reading, filling the screen">
-                <Button
-                  size="sm"
-                  variant="default"
-                  leftSection={<Expand size={15} />}
-                  onClick={() => setFocused(true)}
-                >
+                <Button variant="default" leftSection={<Expand size={15} />} onClick={() => setFocused(true)}>
                   Focus
                 </Button>
               </Tooltip>
@@ -237,8 +238,8 @@ export function DevicePanel({
           </Group>
         }
         header={
-          <Stack gap={0}>
-            <Text fw={600} size="lg">
+          <Group gap="sm" align="baseline">
+            <Text fw={600}>
               {device.measure === "pressure" ? "Pressure" : "Temperature"}
             </Text>
             <Text size="sm" c="dimmed">
@@ -250,13 +251,13 @@ export function DevicePanel({
                 ? ` · ${provenance.origin.filenames.length} file${provenance.origin.filenames.length === 1 ? "" : "s"}`
                 : ""}
             </Text>
-          </Stack>
+          </Group>
         }
       />
 
       {/* Open by default: the whole point of the panel is that it is not
           hidden. It still folds away for someone only watching a number. */}
-      <Accordion variant="separated" radius="lg" defaultValue="provenance">
+      <Accordion variant="separated" defaultValue="provenance">
         <Accordion.Item value="provenance">
           <Accordion.Control>
             <Text fw={600}>Where these numbers come from</Text>
@@ -293,7 +294,7 @@ export function DevicePanel({
           unit: unitLabel(unit || item.unit),
         }))}
       />
-    </Stack>
+    </div>
   )
 }
 

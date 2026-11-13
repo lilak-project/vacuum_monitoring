@@ -1,8 +1,8 @@
 import { useMemo, useRef } from "react"
 import {
-  Alert, Badge, Divider, Group, Loader, Paper, Select, Stack, Switch, Text, Tooltip,
+  Badge, Divider, Group, Loader, Paper, Select, Stack, Switch, Text, Tooltip,
 } from "@mantine/core"
-import { AlertTriangle, Download, ImageDown } from "lucide-react"
+import { Download, ImageDown } from "lucide-react"
 import type uPlot from "uplot"
 
 import { downloadChartPng, downloadWindowCsv, stampedName } from "@/lib/download"
@@ -155,43 +155,47 @@ export function ChartCard({
         {/* One row of controls, above the chart they scope. */}
         <RangeControls range={range} />
 
-        {error ? (
-          <Alert color="red" icon={<AlertTriangle size={18} />} title="Could not read the samples">
-            {error}
-          </Alert>
-        ) : null}
-
-        {empty && !loading ? (
-          <Stack gap={4} py="xl" align="center">
-            <Text c="dimmed" size="sm">
-              No samples in this window.
-            </Text>
-            <Text c="dimmed" size="xs">
-              {/* Said plainly, because the two reasons need different actions:
-                  a window before the device was opened, or a device that has
-                  not read anything yet. */}
-              Widen it or press All — or, if this device has only just been
-              opened, wait a second for its first reading.
-            </Text>
-          </Stack>
-        ) : (
-          <ChartBoundary>
-            <TimeChart
-              channels={channels}
-              window={range.window}
-              logY={logY && canLogY}
-              yRange={null}
-              loading={loading}
-              onRange={range.setWindow}
-              onReset={range.reset}
-              watermark={watermark}
-              watermarkAt={watermarkAt}
-              onPlot={(plot) => {
-                plotRef.current = plot
-              }}
-            />
-          </ChartBoundary>
-        )}
+        {/* One slot, one height (NEON rule 5): the chart, or the reason there is
+            none, in the same place -- and a failed read laid over it rather
+            than pushed in above it. */}
+        <div className="vac-chartslot">
+          {empty && !loading ? (
+            <div className="vac-chartempty">
+              <Text c="dimmed" size="sm">
+                No samples in this window.
+              </Text>
+              <Text c="dimmed" size="xs">
+                {/* Said plainly, because the two reasons need different actions:
+                    a window before the device was opened, or a device that has
+                    not read anything yet. */}
+                Widen it or press All — or, if this device has only just been
+                opened, wait a second for its first reading.
+              </Text>
+            </div>
+          ) : (
+            <ChartBoundary>
+              <TimeChart
+                channels={channels}
+                window={range.window}
+                logY={logY && canLogY}
+                yRange={null}
+                loading={loading}
+                onRange={range.setWindow}
+                onReset={range.reset}
+                watermark={watermark}
+                watermarkAt={watermarkAt}
+                onPlot={(plot) => {
+                  plotRef.current = plot
+                }}
+              />
+            </ChartBoundary>
+          )}
+          {error ? (
+            <div className="vac-chartfail tone-text-alarm" role="alert">
+              ■ Could not read the samples: {error}
+            </div>
+          ) : null}
+        </div>
 
         <Group gap="lg" wrap="wrap">
           <Text size="xs" c="dimmed">
@@ -216,12 +220,13 @@ export function ChartCard({
               {channels[0].conversion.description}
             </Text>
           ) : null}
-          {loading ? <Loader size="xs" /> : null}
+          {/* Always in the row, seen only while loading: nothing shifts. */}
+          <Loader size="xs" style={{ visibility: loading ? "visible" : "hidden" }} />
         </Group>
 
         <Text size="xs" c="dimmed">
-          Drag across the chart to zoom to that interval · wheel to zoom · shift-drag to pan ·
-          double-click to go back
+          Drag across the chart to zoom to that interval · shift-drag to pan · double-click
+          to go back · the wheel scrolls the page
         </Text>
 
         <Divider />

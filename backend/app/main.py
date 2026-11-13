@@ -10,7 +10,9 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
@@ -19,7 +21,7 @@ from starlette.types import Scope
 from .config import STATIC_DIR
 from .drivers_bridge import AVAILABLE, IMPORT_ERROR
 from .monitor import monitor
-from . import elog
+from . import access, elog
 from .routers import devices, logs, profiles, sources, status
 from .store import load_profiles
 
@@ -103,6 +105,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def control_gate(request: Request, call_next):
+    """Monitoring callers may read everything and change nothing (access.py)."""
+    if access.needs_control(request):
+        caller = await run_in_threadpool(access.who, request)
+        if not caller["control"]:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Monitoring only: changing the sources needs a portal manager or an admin of this service."},
+            )
+    return await call_next(request)
+
+
+@app.get("/api/me", tags=["meta"])
+async def me(request: Request) -> dict:
+    """Who is looking, and whether they may control (the page's mode switch)."""
+    return await run_in_threadpool(access.who, request)
+
 
 app.include_router(sources.router)
 app.include_router(profiles.router)

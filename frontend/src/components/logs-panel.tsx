@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  Alert, Anchor, Badge, Button, FileButton, Group, Paper, ScrollArea, Stack, Table, Text,
+  Anchor, Badge, Button, FileButton, Group, Paper, ScrollArea, Stack, Table, Text,
 } from "@mantine/core"
-import { AlertTriangle, Download, FolderOpen, RefreshCw } from "lucide-react"
+import { Download, FolderOpen, RefreshCw } from "lucide-react"
+import { NoticeLine } from "@neon"
 
 import { ChartCard } from "@/components/chart/chart-card"
 import { useTimeRange } from "@/components/chart/use-time-range"
@@ -78,11 +79,8 @@ export function LogsPanel() {
 
   return (
     <Stack gap="xl">
-      {error ? (
-        <Alert color="red" icon={<AlertTriangle size={18} />} title="Could not read the logs">
-          {error}
-        </Alert>
-      ) : null}
+      {/* Always there (rule 5): a failure fills it instead of pushing the list. */}
+      <NoticeLine tone={error ? "alarm" : null}>{error ? `Could not read the logs: ${error}` : "Logs read"}</NoticeLine>
 
       <Paper withBorder p="lg" radius="lg">
         <Section
@@ -144,7 +142,7 @@ export function LogsPanel() {
                   {list?.logs.map((entry) => (
                     <Table.Tr
                       key={entry.filename}
-                      bg={selected === entry.filename ? "blue.0" : undefined}
+                      className={selected === entry.filename ? "vac-picked" : undefined}
                     >
                       <Table.Td className="tabular">{entry.filename}</Table.Td>
                       <Table.Td fw={500}>{entry.name}</Table.Td>

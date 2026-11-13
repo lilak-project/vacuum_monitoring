@@ -181,6 +181,7 @@ export function ProvenancePanel({
       </SimpleGrid>
 
       {spec && spec.caveats.length > 0 ? (
+        // neon:allow — part of the device's details, which arrive together, not a warning that comes and goes
         <Alert color="yellow" variant="light" title="Worth knowing about this instrument">
           <Stack gap={4}>
             {spec.caveats.map((caveat, index) => (

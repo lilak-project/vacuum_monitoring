@@ -1,0 +1,57 @@
+/* Vacuum on the DAQ look (neon_ui). The look itself -- tokens, parts, the
+   Mantine theme -- is neon_ui's; this file only lays out vacuum's own pieces
+   on its tokens. */
+
+/* Readouts that update once a second must not reflow as digits change. */
+.tabular { font-variant-numeric: tabular-nums; }
+
+.vac-stack { display: flex; flex-direction: column; gap: var(--neon-gap); }
+.vac-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 28px; }
+.vac-keys { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.vac-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.vac-swatch { display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; }
+
+/* --- the chart ------------------------------------------------------- */
+
+/* uPlot draws into a canvas it sizes itself; this is the box it measures. */
+.chart-host { width: 100%; }
+/* uPlot sets the pixel width of .uplot and .u-wrap itself; the host follows
+   the panel and the ResizeObserver passes its width on. */
+.chart-host .uplot { width: 100%; }
+.chart-host .u-axis, .chart-host .u-legend { font-family: inherit; color: var(--neon-text); }
+.chart-host .u-legend { font-size: var(--neon-fs-small); margin-top: 2px; }
+.chart-host .u-legend .u-marker { border-width: 3px; }
+.chart-host .u-legend .u-value { font-variant-numeric: tabular-nums; }
+/* The drag-to-zoom rectangle reads as a selection, not as data. */
+.chart-host .u-select {
+  background: color-mix(in srgb, var(--neon-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--neon-accent) 50%, transparent);
+}
+.chart-host .u-cursor-x, .chart-host .u-cursor-y { border-color: var(--neon-dim); }
+/* A value read off the chart, pinned beside the cursor. */
+.chart-tooltip {
+  position: absolute; z-index: 3; pointer-events: none;
+  background: var(--neon-raise); border: 1px solid var(--neon-line); color: var(--neon-text);
+  padding: 6px 10px; font-size: var(--neon-fs-small); white-space: nowrap;
+  transform: translate(12px, 12px);
+}
+
+/* Prose in the provenance panel: the sentences carry **bold** spans. */
+.explain strong { font-weight: 600; }
+
+/* A definition list of facts, two columns that stay aligned down the panel. */
+.fact-grid { display: grid; grid-template-columns: minmax(9rem, max-content) 1fr; gap: 6px 14px; align-items: baseline; margin: 0; }
+.fact-grid dt { color: var(--neon-dim); font-size: var(--neon-fs-small); }
+.fact-grid dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 47.99em) {
+  .fact-grid { grid-template-columns: 1fr; gap: 2px 14px; }
+  .fact-grid dd { margin-bottom: 8px; }
+}
+
+/* The chart's slot: the chart's height whether it draws or explains why not;
+   a failed read is laid over the top of it. */
+.vac-chartslot { position: relative; min-height: 340px; }
+.vac-chartempty { height: 340px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.vac-chartfail { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 4; padding: 8px 12px; background: var(--neon-raise); border-left: 3px solid currentColor; }
+/* The picked row of a list: lit like any picked thing. */
+.vac-picked td { background: color-mix(in srgb, var(--neon-accent) 12%, transparent); }
