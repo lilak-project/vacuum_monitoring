@@ -116,6 +116,23 @@ CATALOG: dict[str, DeviceSpec] = {
             "Both gauges share one serial line, so channel 2 is read a moment after channel 1.",
         ],
     ),
+    "VGC401": DeviceSpec(
+        name="VGC401",
+        title="INFICON VGC401 — single gauge controller",
+        measure="pressure",
+        channels=[ChannelSpec("Gauge", "VGC401.get_pr1()", "PR1")],
+        link="RS-232 on the rear D-sub (not CONTROL), 9600 8N1, 1 s timeout; any port, often a built-in /dev/ttyS*",
+        arithmetic=(
+            "The TPG mnemonic protocol: `PR1`, ACK, then ENQ fetches `<status>,<pressure>` "
+            "and the second field is taken as a float."
+        ),
+        unit_note="Read from the controller with `UNI`: 0 mbar, 1 Torr, 2 Pa, 3 Micron.",
+        caveats=[
+            "A non-zero status field is a gauge fault (under/over range, sensor off, "
+            "no sensor); the pressure field is returned regardless.",
+            "It answers `AYT` with NAK, so the driver checks it is there with `PR1` instead.",
+        ],
+    ),
     "TIC100": DeviceSpec(
         name="TIC100",
         title="Edwards TIC — turbo instrument controller, three gauge inputs",

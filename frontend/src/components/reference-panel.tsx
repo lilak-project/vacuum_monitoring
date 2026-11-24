@@ -116,7 +116,7 @@ export function ReferencePanel() {
                 ["value", "The reading, in the unit beside it"],
                 ["unit", "The unit the instrument itself reported"],
                 ["measure", "pressure or temperature"],
-                ["device_type", "BCG450, TPG36X, LS218, TIC100"],
+                ["device_type", "BCG450, TPG36X, VGC401, LS218, TIC100"],
                 ["device_name", "The name the operator gave it"],
               ].map(([column, meaning]) => (
                 <Table.Tr key={column}>

@@ -14,11 +14,13 @@ from .sermeasure import SerMeasure, UnitType
 from .serman import SerMan
 from .tic100 import TIC100
 from .tpg36x import TPG36X
+from .vgc401 import VGC401
 
 #: Every device type the service can open, by the name used in the API.
 DEVICE_CLASSES: dict[str, type] = {
     "BCG450": BCG450,
     "TPG36X": TPG36X,
+    "VGC401": VGC401,
     "LS218": LS218,
     "TIC100": TIC100,
     "M1": M1,
@@ -35,5 +37,6 @@ __all__ = [
     "TIC100",
     "TPG36X",
     "UnitType",
+    "VGC401",
     "DEVICE_CLASSES",
 ]
